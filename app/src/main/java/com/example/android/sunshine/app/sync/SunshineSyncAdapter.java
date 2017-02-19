@@ -2,7 +2,6 @@ package com.example.android.sunshine.app.sync;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
-import android.annotation.SuppressLint;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.AbstractThreadedSyncAdapter;
@@ -29,13 +28,11 @@ import android.support.v4.app.TaskStackBuilder;
 import android.text.format.Time;
 import android.util.Log;
 
-import com.bumptech.glide.Glide;
 import com.example.android.sunshine.app.BuildConfig;
 import com.example.android.sunshine.app.MainActivity;
 import com.example.android.sunshine.app.R;
 import com.example.android.sunshine.app.Utility;
 import com.example.android.sunshine.app.data.WeatherContract;
-import com.example.android.sunshine.app.muzei.WeatherMuzeiSource;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -50,12 +47,9 @@ import java.lang.annotation.RetentionPolicy;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.Vector;
-import java.util.concurrent.ExecutionException;
 
 public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     public final String LOG_TAG = SunshineSyncAdapter.class.getSimpleName();
-    public static final String ACTION_DATA_UPDATED =
-            "com.example.android.sunshine.app.ACTION_DATA_UPDATED";
     // Interval at which to sync with the weather, in seconds.
     // 60 seconds (1 minute) * 180 = 3 hours
     public static final int SYNC_INTERVAL = 60 * 180;
@@ -94,13 +88,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
     @Override
     public void onPerformSync(Account account, Bundle extras, String authority, ContentProviderClient provider, SyncResult syncResult) {
         Log.d(LOG_TAG, "Starting sync");
-
-        // We no longer need just the location String, but also potentially the latitude and
-        // longitude, in case we are syncing based on a new Place Picker API result.
-        Context context = getContext();
-        String locationQuery = Utility.getPreferredLocation(context);
-        String locationLatitude = String.valueOf(Utility.getLocationLatitude(context));
-        String locationLongitude = String.valueOf(Utility.getLocationLongitude(context));
+        String locationQuery = Utility.getPreferredLocation(getContext());
 
         // These two need to be declared outside the try/catch
         // so that they can be closed in the finally block.
@@ -121,29 +109,14 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             final String FORECAST_BASE_URL =
                     "http://api.openweathermap.org/data/2.5/forecast/daily?";
             final String QUERY_PARAM = "q";
-            final String LAT_PARAM = "lat";
-            final String LON_PARAM = "lon";
             final String FORMAT_PARAM = "mode";
             final String UNITS_PARAM = "units";
             final String DAYS_PARAM = "cnt";
             final String APPID_PARAM = "APPID";
 
-            Uri.Builder uriBuilder = Uri.parse(FORECAST_BASE_URL).buildUpon();
-
-            // Instead of always building the query based off of the location string, we want to
-            // potentially build a query using a lat/lon value. This will be the case when we are
-            // syncing based off of a new location from the Place Picker API. So we need to check
-            // if we have a lat/lon to work with, and use those when we do. Otherwise, the weather
-            // service may not understand the location address provided by the Place Picker API
-            // and the user could end up with no weather! The horror!
-            if (Utility.isLocationLatLonAvailable(context)) {
-                uriBuilder.appendQueryParameter(LAT_PARAM, locationLatitude)
-                        .appendQueryParameter(LON_PARAM, locationLongitude);
-            } else {
-                uriBuilder.appendQueryParameter(QUERY_PARAM, locationQuery);
-            }
-
-            Uri builtUri = uriBuilder.appendQueryParameter(FORMAT_PARAM, format)
+            Uri builtUri = Uri.parse(FORECAST_BASE_URL).buildUpon()
+                    .appendQueryParameter(QUERY_PARAM, locationQuery)
+                    .appendQueryParameter(FORMAT_PARAM, format)
                     .appendQueryParameter(UNITS_PARAM, units)
                     .appendQueryParameter(DAYS_PARAM, Integer.toString(numDays))
                     .appendQueryParameter(APPID_PARAM, BuildConfig.OPEN_WEATHER_MAP_API_KEY)
@@ -251,7 +224,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
         try {
             JSONObject forecastJson = new JSONObject(forecastJsonStr);
-            Context context = getContext();
 
             // do we have an error?
             if ( forecastJson.has(OWM_MESSAGE_CODE) ) {
@@ -366,8 +338,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                         WeatherContract.WeatherEntry.COLUMN_DATE + " <= ?",
                         new String[] {Long.toString(dayTime.setJulianDay(julianStartDay-1))});
 
-                updateWidgets();
-                updateMuzei();
                 notifyWeather();
             }
             Log.d(LOG_TAG, "Sync Complete. " + cVVector.size() + " Inserted");
@@ -377,24 +347,6 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
             Log.e(LOG_TAG, e.getMessage(), e);
             e.printStackTrace();
             setLocationStatus(getContext(), LOCATION_STATUS_SERVER_INVALID);
-        }
-    }
-
-    private void updateWidgets() {
-        Context context = getContext();
-        // Setting the package ensures that only components in our app will receive the broadcast
-        Intent dataUpdatedIntent = new Intent(ACTION_DATA_UPDATED)
-                .setPackage(context.getPackageName());
-        context.sendBroadcast(dataUpdatedIntent);
-    }
-
-    private void updateMuzei() {
-        // Muzei is only compatible with Jelly Bean MR1+ devices, so there's no need to update the
-        // Muzei background on lower API level devices
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR1) {
-            Context context = getContext();
-            context.startService(new Intent(ACTION_DATA_UPDATED)
-                    .setClass(context, WeatherMuzeiSource.class));
         }
     }
 
@@ -428,33 +380,8 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
 
                     int iconId = Utility.getIconResourceForWeatherCondition(weatherId);
                     Resources resources = context.getResources();
-                    int artResourceId = Utility.getArtResourceForWeatherCondition(weatherId);
-                    String artUrl = Utility.getArtUrlForWeatherCondition(context, weatherId);
-
-                    // On Honeycomb and higher devices, we can retrieve the size of the large icon
-                    // Prior to that, we use a fixed size
-                    @SuppressLint("InlinedApi")
-                    int largeIconWidth = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                            ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_width)
-                            : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-                    @SuppressLint("InlinedApi")
-                    int largeIconHeight = Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB
-                            ? resources.getDimensionPixelSize(android.R.dimen.notification_large_icon_height)
-                            : resources.getDimensionPixelSize(R.dimen.notification_large_icon_default);
-
-                    // Retrieve the large icon
-                    Bitmap largeIcon;
-                    try {
-                        largeIcon = Glide.with(context)
-                                .load(artUrl)
-                                .asBitmap()
-                                .error(artResourceId)
-                                .fitCenter()
-                                .into(largeIconWidth, largeIconHeight).get();
-                    } catch (InterruptedException | ExecutionException e) {
-                        Log.e(LOG_TAG, "Error retrieving large icon from " + artUrl, e);
-                        largeIcon = BitmapFactory.decodeResource(resources, artResourceId);
-                    }
+                    Bitmap largeIcon = BitmapFactory.decodeResource(resources,
+                            Utility.getArtResourceForWeatherCondition(weatherId));
                     String title = context.getString(R.string.app_name);
 
                     // Define the text of the forecast.
@@ -467,7 +394,7 @@ public class SunshineSyncAdapter extends AbstractThreadedSyncAdapter {
                     // notifications.  Just throw in some data.
                     NotificationCompat.Builder mBuilder =
                             new NotificationCompat.Builder(getContext())
-                                    .setColor(resources.getColor(R.color.primary_light))
+                                    .setColor(resources.getColor(R.color.sunshine_light_blue))
                                     .setSmallIcon(iconId)
                                     .setLargeIcon(largeIcon)
                                     .setContentTitle(title)
