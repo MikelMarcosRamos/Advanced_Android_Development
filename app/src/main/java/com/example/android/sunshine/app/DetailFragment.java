@@ -186,8 +186,9 @@ public class DetailFragment extends Fragment implements LoaderManager.LoaderCall
 
             // Use weather art image
             Glide.with(this)
-                    .load(Utility.getArtUrlForWeatherCondition(getActivity(),weatherId))
+                    .load(Utility.getArtUrlForWeatherCondition(getActivity(), weatherId))
                     .error(Utility.getArtResourceForWeatherCondition(weatherId))
+                    .crossFade()
                     .into(mIconView);
 
             // Read date from cursor and update views for day of week and date
