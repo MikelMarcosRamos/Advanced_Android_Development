@@ -32,6 +32,7 @@ dependencies {
     compile 'com.google.firebase:firebase-messaging:10.2.0'
 
     compile 'com.google.android.gms:play-services:10.2.0'
+    compile 'com.android.support:gridlayout-v7:25.2.0'
 }
 
 apply plugin: 'com.google.gms.google-services'
