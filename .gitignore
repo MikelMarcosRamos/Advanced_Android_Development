@@ -43,3 +43,6 @@ project.properties
 build/
 
 gradle.properties
+
+constants.xml
+google-services.json

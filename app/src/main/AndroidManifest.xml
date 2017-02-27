@@ -95,6 +95,19 @@
                 android:resource="@xml/syncadapter" />
         </service>
 
+        <!-- Today Widget -->
+        <receiver
+            android:name=".widget.TodayWidgetProvider"
+            android:label="@string/title_widget_today" >
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.example.android.sunshine.app.ACTION_DATA_UPDATED" />
+            </intent-filter>
+            <meta-data android:name="android.appwidget.provider"
+                android:resource="@xml/widget_info_today" />
+        </receiver>
+        <service android:name=".widget.TodayWidgetIntentService" />
+
         <service
             android:name=".service.WeatherIdService">
             <intent-filter>
@@ -108,6 +121,10 @@
                 <action android:name="com.google.firebase.MESSAGING_EVENT"/>
             </intent-filter>
         </service>
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_places_geo_api"/>
+
     </application>
 
 </manifest>
